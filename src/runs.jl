@@ -137,7 +137,6 @@ function searchruns(mlf::MLFlow, experiment_ids::AbstractVector{<:Integer};
     run_view_type::String="ACTIVE_ONLY",
     max_results::Int64=50000,
     order_by::AbstractVector{<:String}=["attribute.end_time"],
-    page_token::String=""
 ) where {K,V}
     endpoint = "runs/search"
     run_view_type ∈ ["ACTIVE_ONLY", "DELETED_ONLY", "ALL"] || error("Unsupported run_view_type = $run_view_type")
@@ -157,29 +156,41 @@ function searchruns(mlf::MLFlow, experiment_ids::AbstractVector{<:Integer};
         max_results=max_results,
         order_by=order_by
     )
-    if !isempty(page_token)
-        kwargs = (; kwargs..., page_token=page_token)
-    end
 
     result = mlfpost(mlf, endpoint; kwargs...)
     haskey(result, "runs") || return MLFlowRun[]
 
     runs = map(x -> MLFlowRun(x["info"], x["data"]), result["runs"])
 
-    # paging functionality using recursion
-    if haskey(result, "next_page_token") && !isempty(result["next_page_token"])
-        kwargs = (
-            filter=filter,
-            run_view_type=run_view_type,
-            max_results=max_results,
-            order_by=order_by,
-            page_token=result["next_page_token"]
+    # paging functionality
+    while haskey(result, "next_page_token") &&
+        !isempty(result["next_page_token"])
+        result = mlfpost(
+            mlf,
+            endpoint;
+            kwargs...,
+            page_token=result["next_page_token"],
         )
-        next_runs = searchruns(mlf, experiment_ids; kwargs...)
-        return vcat(runs, next_runs)
+
+        if haskey(result, "runs")
+            lcurrent = length(runs)
+            lresult = length(result["runs"])
+            @info "Next page had $lresult more runs, now at a total " *
+                  "of $(lcurrent + lresult) …"
+            append!(
+                runs,
+                map(x -> MLFlowRun(x["info"], x["data"]), result["runs"]),
+            )
+        else
+            # TODO Not sure whether this ever happens (page_token set but then
+            # an empty next page seems ludicrous).
+            @error "Got a next_page token but the next page was empty, " *
+                   "returning what was gathered so far."
+            return runs
+        end
     end
 
-    runs
+    return runs
 end
 searchruns(mlf::MLFlow, experiment_id::Integer; kwargs...) =
     searchruns(mlf, [experiment_id]; kwargs...)
