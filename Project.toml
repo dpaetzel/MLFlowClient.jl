@@ -1,7 +1,7 @@
 name = "MLFlowClient"
-uuid = "64a0f543-368b-4a9a-827a-e71edb2a0b83"
+uuid = "4bb13e4d-3cb4-4e03-a0c1-f2ad6ded9ec8"
 authors = ["@deyandyankov, @pebeto, and contributors"]
-version = "0.5.1"
+version = "0.5.1-custom"
 
 [deps]
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
